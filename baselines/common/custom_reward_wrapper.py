@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 from baselines.common.vec_env import VecEnvWrapper
+from baselines.common.running_mean_std import RunningMeanStd
 
 class VecLiveLongReward(VecEnvWrapper):
     def __init__(self, venv):
@@ -63,9 +64,10 @@ class VecTFRandomReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceReward(VecEnvWrapper):
-    def __init__(self, venv, num_models, model_dir):
+    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0.):
         VecEnvWrapper.__init__(self, venv)
 
+        self.ctrl_coeff = ctrl_coeff
         self.graph = tf.Graph()
 
         config = tf.ConfigProto(
@@ -85,28 +87,21 @@ class VecTFPreferenceReward(VecEnvWrapper):
                 self.models = []
                 for i in range(num_models):
                     with tf.variable_scope('model_%d'%i):
-                        model = Model(self.venv.observation_space.shape[0])
+                        model = Model(include_action,self.venv.observation_space.shape[0],self.venv.action_space.shape[0])
                         model.saver.restore(self.sess,model_dir+'/model_%d.ckpt'%(i))
                     self.models.append(model)
 
-        """
-        try:
-            self.save = venv.save
-            self.load = venv.load
-        except AttributeError:
-            pass
-        """
-
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
+        acs = self.venv.last_actions
 
         with self.graph.as_default():
             with self.sess.as_default():
                 r_hat = np.zeros_like(rews)
                 for model in self.models:
-                    r_hat += model.get_reward(obs)
+                    r_hat += model.get_reward(obs,acs)
 
-        rews = r_hat / len(self.models)
+        rews = r_hat / len(self.models) - self.ctrl_coeff *np.sum(acs**2,axis=1)
 
         return obs, rews, news, infos
 
@@ -114,6 +109,37 @@ class VecTFPreferenceReward(VecEnvWrapper):
         obs = self.venv.reset()
 
         return obs
+
+class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
+    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0.):
+        super().__init__(venv, num_models, model_dir, include_action, ctrl_coeff)
+
+        self.rew_rms = [RunningMeanStd(shape=()) for _ in range(num_models)]
+        self.cliprew = 10.
+        self.epsilon = 1e-8
+
+
+    def step_wait(self):
+        obs, rews, news, infos = self.venv.step_wait()
+        acs = self.venv.last_actions
+
+        r_hats = np.zeros_like(rews)
+        with self.graph.as_default():
+            with self.sess.as_default():
+                for model,rms in zip(self.models,self.rew_rms):
+                    # Preference based reward
+                    r_hat = model.get_reward(obs,acs)
+
+                    # Normalize
+                    rms.update(r_hat)
+                    r_hat = np.clip(r_hat/ np.sqrt(rms.var + self.epsilon), -self.cliprew, self.cliprew)
+
+                    # Sum-up each models' reward
+                    r_hats += r_hat
+
+        rews = r_hat / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
+
+        return obs, rews, news, infos
 
 if __name__ == "__main__":
     pass
