@@ -64,10 +64,12 @@ class VecTFRandomReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceReward(VecEnvWrapper):
-    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0.):
+    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0., alive_bonus=0.):
         VecEnvWrapper.__init__(self, venv)
 
         self.ctrl_coeff = ctrl_coeff
+        self.alive_bonus = alive_bonus
+
         self.graph = tf.Graph()
 
         config = tf.ConfigProto(
@@ -102,6 +104,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
                     r_hat += model.get_reward(obs,acs)
 
         rews = r_hat / len(self.models) - self.ctrl_coeff *np.sum(acs**2,axis=1)
+        rews += self.alive_bonus
 
         return obs, rews, news, infos
 
@@ -111,8 +114,8 @@ class VecTFPreferenceReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
-    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0.):
-        super().__init__(venv, num_models, model_dir, include_action, ctrl_coeff)
+    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0., alive_bonus=0.):
+        super().__init__(venv, num_models, model_dir, include_action, ctrl_coeff, alive_bonus)
 
         self.rew_rms = [RunningMeanStd(shape=()) for _ in range(num_models)]
         self.cliprew = 10.
@@ -138,6 +141,7 @@ class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
                     r_hats += r_hat
 
         rews = r_hat / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
+        rews += self.alive_bonus
 
         return obs, rews, news, infos
 
