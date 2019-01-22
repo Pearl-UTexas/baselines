@@ -64,7 +64,7 @@ class VecTFRandomReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceReward(VecEnvWrapper):
-    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0., alive_bonus=0.):
+    def __init__(self, venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff=0., alive_bonus=0.):
         VecEnvWrapper.__init__(self, venv)
 
         self.ctrl_coeff = ctrl_coeff
@@ -89,7 +89,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
                 self.models = []
                 for i in range(num_models):
                     with tf.variable_scope('model_%d'%i):
-                        model = Model(include_action,self.venv.observation_space.shape[0],self.venv.action_space.shape[0])
+                        model = Model(include_action,self.venv.observation_space.shape[0],self.venv.action_space.shape[0],num_layers=num_layers,embedding_dims=embedding_dims)
                         model.saver.restore(self.sess,model_dir+'/model_%d.ckpt'%(i))
                     self.models.append(model)
 
@@ -114,8 +114,8 @@ class VecTFPreferenceReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
-    def __init__(self, venv, num_models, model_dir, include_action, ctrl_coeff=0., alive_bonus=0.):
-        super().__init__(venv, num_models, model_dir, include_action, ctrl_coeff, alive_bonus)
+    def __init__(self, venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff=0., alive_bonus=0.):
+        super().__init__(venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff, alive_bonus)
 
         self.rew_rms = [RunningMeanStd(shape=()) for _ in range(num_models)]
         self.cliprew = 10.
