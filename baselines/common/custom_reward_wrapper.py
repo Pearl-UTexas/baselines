@@ -64,8 +64,11 @@ class VecTFRandomReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceReward(VecEnvWrapper):
-    def __init__(self, venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff=0., alive_bonus=0.):
+    def __init__(self, venv, model_dir, ctrl_coeff=0., alive_bonus=0.):
         VecEnvWrapper.__init__(self, venv)
+
+        ob_shape = venv.observation_space.shape
+        ac_dims = venv.action_space.n if venv.action_space.dtype == int else venv.action_space.shape[-1]
 
         self.ctrl_coeff = ctrl_coeff
         self.alive_bonus = alive_bonus
@@ -80,22 +83,35 @@ class VecTFPreferenceReward(VecEnvWrapper):
         with self.graph.as_default():
             with self.sess.as_default():
                 import os, sys
+                from argparse import Namespace
+                from pathlib import Path
+
                 dir_path = os.path.dirname(os.path.realpath(__file__))
                 sys.path.append(os.path.join(dir_path,'..','..','..','..'))
-                from preference_learning import Model
+                from preference_learning import Model, AtariNet, MujocoNet
 
                 print(os.path.realpath(model_dir))
+                with open(str(Path(model_dir)/'args.txt')) as f:
+                    args = eval(f.read())
 
-                self.models = []
-                for i in range(num_models):
+                models = []
+                for i in range(args.num_models):
                     with tf.variable_scope('model_%d'%i):
-                        model = Model(include_action,self.venv.observation_space.shape[0],self.venv.action_space.shape[0],num_layers=num_layers,embedding_dims=embedding_dims)
-                        model.saver.restore(self.sess,model_dir+'/model_%d.ckpt'%(i))
-                    self.models.append(model)
+                        if args.env_type == 'mujoco':
+                            net = MujocoNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
+                        elif args.env_type == 'atari':
+                            net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
+
+                        model = Model(net,batch_size=1)
+                        model.saver.restore(self.sess,os.path.join(model_dir,'model_%d.ckpt'%i))
+
+                        models.append(model)
+                self.models = models
 
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
-        acs = self.venv.last_actions
+        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([])
+        assert self.ctrl_coeff == 0.0 or (self.ctrl_coeff != 0.0 and acs.size > 0)
 
         with self.graph.as_default():
             with self.sess.as_default():
@@ -114,17 +130,18 @@ class VecTFPreferenceReward(VecEnvWrapper):
         return obs
 
 class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
-    def __init__(self, venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff=0., alive_bonus=0.):
-        super().__init__(venv, num_models, model_dir, include_action, num_layers, embedding_dims, ctrl_coeff, alive_bonus)
+    def __init__(self, venv, model_dir, ctrl_coeff=0., alive_bonus=0.):
+        super().__init__(venv, model_dir, ctrl_coeff, alive_bonus)
 
-        self.rew_rms = [RunningMeanStd(shape=()) for _ in range(num_models)]
+        self.rew_rms = [RunningMeanStd(shape=()) for _ in range(len(self.models))]
         self.cliprew = 10.
         self.epsilon = 1e-8
 
 
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
-        acs = self.venv.last_actions
+        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([[]])
+        assert self.ctrl_coeff == 0.0 or (self.ctrl_coeff != 0.0 and acs.size > 0)
 
         r_hats = np.zeros_like(rews)
         with self.graph.as_default():
