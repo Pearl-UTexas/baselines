@@ -88,7 +88,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
 
                 dir_path = os.path.dirname(os.path.realpath(__file__))
                 sys.path.append(os.path.join(dir_path,'..','..','..','..'))
-                from preference_learning import Model, AtariNet, MujocoNet
+                from preference_learning import Model, AtariNet, MujocoNet, AtariNetV2
 
                 print(os.path.realpath(model_dir))
                 with open(str(Path(model_dir)/'args.txt')) as f:
@@ -100,7 +100,8 @@ class VecTFPreferenceReward(VecEnvWrapper):
                         if args.env_type == 'mujoco':
                             net = MujocoNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
                         elif args.env_type == 'atari':
-                            net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
+                            #net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
+                            net = AtariNetV2(ob_shape,embedding_dims=args.embedding_dims)
 
                         model = Model(net,batch_size=1)
                         model.saver.restore(self.sess,os.path.join(model_dir,'model_%d.ckpt'%i))
