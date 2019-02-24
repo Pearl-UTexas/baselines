@@ -154,7 +154,7 @@ def constfn(val):
         return val
     return f
 
-def test(*, policy, env, nsteps, model_dir):
+def test(*, policy, env, nsteps, model_dir, num_iter=1):
     ob_space = env.observation_space
     ac_space = env.action_space
 
@@ -165,27 +165,28 @@ def test(*, policy, env, nsteps, model_dir):
     model.load(model_dir)
     lstm_states = model.initial_state #not used if the policy is not lstm
 
-    done = False
-    states,actions,images = [],[],[]
+    for _ in range(num_iter):
+        done = False
+        states,actions,images = [],[],[]
 
-    obs = env.reset()
-    while(True):
-        #TODO: Vectorize
-        a, _, _, _ = model.step(obs, lstm_states, [done])
+        obs = env.reset()
+        while(True):
+            #TODO: Vectorize
+            a, _, _, _ = model.step(obs, lstm_states, [done])
 
-        states.append(obs[0])
-        actions.append(a[0])
+            states.append(obs[0])
+            actions.append(a[0])
 
-        obs, r, done, info = env.step(a)
-        images.append(info[0]['img'])
+            obs, r, done, info = env.step(a)
+            images.append(info[0]['img'])
 
-        if( done[0] ):
-            break
-    env.close()
+            if( done[0] ):
+                break
+        env.close()
 
-    return np.stack(states,axis=0),\
-           np.stack(actions,axis=0),\
-           np.stack(images,axis=0)
+        yield np.stack(states,axis=0),\
+              np.stack(actions,axis=0),\
+              np.stack(images,axis=0)
 
 def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             vf_coef=0.5,  max_grad_norm=0.5, gamma=0.99, lam=0.95,

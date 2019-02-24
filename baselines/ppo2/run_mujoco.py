@@ -26,9 +26,21 @@ def train(env_id, num_timesteps, seed):
     sal_load_fn = partial(sal.load,
                           ### Shuffle and Learn trained with videos gathered by Maml Aligner.
                           #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 17:22:19/model.ckpt-10000') #(Target Subtask 0) Good! Update ~150 will do. (more is beneficial)
-                          '/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 18:06:46/model.ckpt-10000') #(Target Subtask 1)
-                          ### Shuffle and Learn trained with videos gathered by Pefrect Alignment -- New
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 17:49:14/model.ckpt-55000') #(Target Subtask 0) new!
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 18:06:46/model.ckpt-10000') #(Target Subtask 1)
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 14:52:22/model.ckpt-55000') #(Target Subtask 1)
+                          ### Shuffle and Learn trained with videos gathered by Pefrect Alignment -- Task(0)
                           #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-18 21:12:41/model.ckpt-10000') #Good! Update 150. will work.
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 18:00:02/model.ckpt-55000') # New Target subtask(0)
+                          ### Shuffle and Learn trained with videos gathered by Pefrect Alignment -- Task(1)
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 00:20:24/last.ckpt')
+
+                            # Shuffle and Learn trained with one-shot for task (0)
+                          '/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-09-07 16:31:48/last.ckpt')
+                          ### Shuffle and Learn trained with whole videos (Ordred)
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 23:09:51/model.ckpt-45000')
+                          ### Shuffle and Learn trained with whole videos (Unordred)
+                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 23:14:17/model.ckpt-30000')
 
     def make_env():
         import numpy as np
@@ -41,7 +53,7 @@ def train(env_id, num_timesteps, seed):
         COLOR_SET = COLOR_SET[:4]
 
         env = gym.make(env_id)
-        env.unwrapped.set_goals( [1] )
+        env.unwrapped.set_goals( [0] )
         env.unwrapped.set_targets_color( COLOR_SET )
 
         # 1. Sparse Reward
