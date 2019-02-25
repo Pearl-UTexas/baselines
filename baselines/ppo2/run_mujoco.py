@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 from OpenGL import GLU
+import sys,os
 import gym, roboschool
 import argparse
+
+sys.path.append('../../')
 from baselines import bench, logger
 
-def train(env_id, num_timesteps, seed):
+def train(env_id, num_timesteps, seed, goal, reward_type, reward_model):
     from baselines.common import set_global_seeds
     from baselines.common.vec_env.vec_normalize import VecNormalize
     from baselines.ppo2 import ppo2
@@ -19,28 +22,14 @@ def train(env_id, num_timesteps, seed):
     config.gpu_options.allow_growth = True
     tf.Session(config=config).__enter__()
 
-    # 4-1. Shuffle And Learn Reward
-    from baselines.ppo2.tf_reward import ShuffleAndLearn
-    from functools import partial
-    sal = ShuffleAndLearn(tf.get_default_session())
-    sal_load_fn = partial(sal.load,
-                          ### Shuffle and Learn trained with videos gathered by Maml Aligner.
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 17:22:19/model.ckpt-10000') #(Target Subtask 0) Good! Update ~150 will do. (more is beneficial)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 17:49:14/model.ckpt-55000') #(Target Subtask 0) new!
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 18:06:46/model.ckpt-10000') #(Target Subtask 1)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 14:52:22/model.ckpt-55000') #(Target Subtask 1)
-                          ### Shuffle and Learn trained with videos gathered by Pefrect Alignment -- Task(0)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-18 21:12:41/model.ckpt-10000') #Good! Update 150. will work.
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 18:00:02/model.ckpt-55000') # New Target subtask(0)
-                          ### Shuffle and Learn trained with videos gathered by Pefrect Alignment -- Task(1)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-20 00:20:24/last.ckpt')
-
-                            # Shuffle and Learn trained with one-shot for task (0)
-                          '/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-09-07 16:31:48/last.ckpt')
-                          ### Shuffle and Learn trained with whole videos (Ordred)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 23:09:51/model.ckpt-45000')
-                          ### Shuffle and Learn trained with whole videos (Unordred)
-                          #'/home/wonjoon/workspace/tcn-ppo/log/shffule-and-learn/2018-01-19 23:14:17/model.ckpt-30000')
+    if reward_type == 'inferred':
+        # 4-1. Shuffle And Learn Reward
+        from baselines.ppo2.tf_reward import ShuffleAndLearn
+        from functools import partial
+        sal = ShuffleAndLearn(tf.get_default_session())
+        sal_load_fn = partial(sal.load,reward_model)
+    else:
+        sal_load_fn = None
 
     def make_env():
         import numpy as np
@@ -53,7 +42,7 @@ def train(env_id, num_timesteps, seed):
         COLOR_SET = COLOR_SET[:4]
 
         env = gym.make(env_id)
-        env.unwrapped.set_goals( [0] )
+        env.unwrapped.set_goals( [goal] )
         env.unwrapped.set_targets_color( COLOR_SET )
 
         # 1. Sparse Reward
@@ -67,8 +56,9 @@ def train(env_id, num_timesteps, seed):
         # 3. Simple Reward (Distance Based Reward)
         #env.unwrapped.set_simple_reward()
 
-        # 4-1. Shuffle And Learn Reward
-        env.unwrapped.set_tf_reward_fn(sal.reward_fn)
+        if reward_type == 'inferred':
+            # 4-1. Shuffle And Learn Reward
+            env.unwrapped.set_tf_reward_fn(sal.reward_fn)
 
         env = bench.Monitor(env, logger.get_dir())
         return env
@@ -90,14 +80,15 @@ def train(env_id, num_timesteps, seed):
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', default='RoboschoolReacher-v1')
-    #parser.add_argument('--env', help='environment ID', default='Hopper-v1')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--num-timesteps', type=int, default=int(1e6))
+    parser.add_argument('--goal', default=0, choices=[0,1])
+    parser.add_argument('--reward_type', default='inferred', choices=['gt','inferred'])
+    parser.add_argument('--reward_model', default='')
     args = parser.parse_args()
     logger.configure()
 
-    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed)
-
+    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed, goal=args.goal, reward_type=args.reward_type, reward_model=args.reward_model)
 
 if __name__ == '__main__':
     main()

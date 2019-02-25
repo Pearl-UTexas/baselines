@@ -1,5 +1,7 @@
+import os
 import sys
-sys.path.append('/home/wonjoon/workspace/tcn-ppo')
+
+sys.path.append(os.path.join(os.path.dirname(__file__),'..','..','..','tcn-ppo'))
 
 import numpy as np
 import tensorflow as tf
