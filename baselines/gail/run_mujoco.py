@@ -3,6 +3,7 @@ Disclaimer: this code is highly based on trpo_mpi at @openai/baselines and @open
 '''
 
 import argparse
+import os
 import os.path as osp
 import logging
 from mpi4py import MPI
@@ -25,7 +26,6 @@ def argsparser():
     parser.add_argument('--env_id', help='environment ID', default='Hopper-v2')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--expert_path', type=str, default='data/deterministic.trpo.Hopper.0.00.npz')
-    parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
     parser.add_argument('--log_dir', help='the directory to save log file', default='log')
     parser.add_argument('--load_model_path', help='if provided, load the model', type=str, default=None)
     # Task
@@ -76,15 +76,20 @@ def main(args):
     def policy_fn(name, ob_space, ac_space, reuse=False):
         return mlp_policy.MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
                                     reuse=reuse, hid_size=args.policy_hidden_size, num_hid_layers=2)
-    env = bench.Monitor(env, logger.get_dir() and
-                        osp.join(logger.get_dir(), "monitor.json"))
-    env.seed(args.seed)
-    gym.logger.setLevel(logging.WARN)
-    task_name = get_task_name(args)
-    args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
-    args.log_dir = osp.join(args.log_dir, task_name)
-
     if args.task == 'train':
+        env = bench.Monitor(env, logger.get_dir() and
+                            osp.join(logger.get_dir(), "monitor.json"))
+        env.seed(args.seed)
+        gym.logger.setLevel(logging.WARN)
+        task_name = get_task_name(args)
+
+        os.makedirs(args.log_dir, exist_ok=True)
+        with open(osp.join(args.log_dir,'args.txt'),'w') as f:
+            f.write( str(args) )
+
+        args.checkpoint_dir = osp.join(args.log_dir, 'chckpts')
+        os.makedirs(args.checkpoint_dir, exist_ok=True)
+
         dataset = Mujoco_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
         reward_giver = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
         train(env,
@@ -133,8 +138,11 @@ def train(env, seed, policy_fn, reward_giver, dataset, algo,
         from baselines.gail import trpo_mpi
         # Set up for MPI seed
         rank = MPI.COMM_WORLD.Get_rank()
-        if rank != 0:
+        if rank == 0:
+            logger.configure(dir=log_dir, format_strs=['stdout','csv','tensorboard'])
+        else:
             logger.set_level(logger.DISABLED)
+
         workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
         set_global_seeds(workerseed)
         env.seed(workerseed)
@@ -171,13 +179,15 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
     acs_list = []
     len_list = []
     ret_list = []
+    max_x_pos_list = []
     for _ in tqdm(range(number_trajs)):
-        traj = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
+        traj, max_x_pos = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
         obs, acs, ep_len, ep_ret = traj['ob'], traj['ac'], traj['ep_len'], traj['ep_ret']
         obs_list.append(obs)
         acs_list.append(acs)
         len_list.append(ep_len)
         ret_list.append(ep_ret)
+        max_x_pos_list.append(max_x_pos)
     if stochastic_policy:
         print('stochastic policy:')
     else:
@@ -188,8 +198,10 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
                  lens=np.array(len_list), rets=np.array(ret_list))
     avg_len = sum(len_list)/len(len_list)
     avg_ret = sum(ret_list)/len(ret_list)
+    avg_max_x_pos = np.mean(max_x_pos_list)
     print("Average length:", avg_len)
     print("Average return:", avg_ret)
+    print("Average max_x_pos:", avg_max_x_pos)
     return avg_len, avg_ret
 
 
@@ -209,6 +221,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
     rews = []
     news = []
     acs = []
+    x_pos = []
 
     while True:
         ac, vpred = pi.act(stochastic, ob)
@@ -217,6 +230,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
         acs.append(ac)
 
         ob, rew, new, _ = env.step(ac)
+        x_pos.append(env.unwrapped.sim.data.qpos[0])
         rews.append(rew)
 
         cur_ep_ret += rew
@@ -231,7 +245,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
     acs = np.array(acs)
     traj = {"ob": obs, "rew": rews, "new": news, "ac": acs,
             "ep_ret": cur_ep_ret, "ep_len": cur_ep_len}
-    return traj
+    return traj, x_pos[-1]
 
 
 if __name__ == '__main__':
