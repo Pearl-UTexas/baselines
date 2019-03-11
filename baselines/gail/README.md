@@ -19,7 +19,7 @@ python -m baselines.gail.run_mujoco --task evaluate --load_model_path ./path/to/
   - Check the parent projects `gail_dst_gen.py`.
 
     ```
-    python gail_dst_gen.py --env_id 'Hopper-v2' --learners_path ./learner/demo_models/hopper/checkpoints/ --train_chkpt '60' --num_trajs 1
+    python gail_dst_gen.py --env_id 'Hopper-v2' --learners_path ./learner/demo_models/hopper/checkpoints/ --train_chkpt '120' --num_trajs 1 --stochastic
     ```
 
 # Original README
