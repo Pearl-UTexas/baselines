@@ -127,6 +127,10 @@ def build_env(args):
             env = W.VecTFPreferenceReward(env,**custom_reward_kwargs)
         elif args.custom_reward == 'preference_normalized':
             env = W.VecTFPreferenceRewardNormalized(env,**custom_reward_kwargs)
+        elif args.custom_reward == 'preference_normalized_v2':
+            env = W.VecTFPreferenceRewardNormalizedV2(env,**custom_reward_kwargs)
+        elif args.custom_reward == 'preference_normalized_v3':
+            env = W.VecTFPreferenceRewardNormalizedV3(env,**custom_reward_kwargs)
         else:
             assert False, 'no such wrapper exist'
 

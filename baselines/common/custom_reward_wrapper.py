@@ -100,8 +100,8 @@ class VecTFPreferenceReward(VecEnvWrapper):
                         if args.env_type == 'mujoco':
                             net = MujocoNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
                         elif args.env_type == 'atari':
-                            #net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
-                            net = AtariNetV2(ob_shape,embedding_dims=args.embedding_dims)
+                            net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
+                            #net = AtariNetV2(ob_shape,embedding_dims=args.embedding_dims)
 
                         model = Model(net,batch_size=1)
                         model.saver.restore(self.sess,os.path.join(model_dir,'model_%d.ckpt'%i))
@@ -111,7 +111,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
 
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
-        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([])
+        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([[]])
         assert self.ctrl_coeff == 0.0 or (self.ctrl_coeff != 0.0 and acs.size > 0)
 
         with self.graph.as_default():
@@ -157,6 +157,60 @@ class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
 
                     # Sum-up each models' reward
                     r_hats += r_hat
+
+        #TODO: BUG ALERT!!!!
+        rews = r_hats / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
+        rews += self.alive_bonus
+
+        return obs, rews, news, infos
+
+class VecTFPreferenceRewardNormalizedV2(VecTFPreferenceReward):
+    def __init__(self, venv, model_dir, ctrl_coeff=0., alive_bonus=0.):
+        super().__init__(venv, model_dir, ctrl_coeff, alive_bonus)
+
+        self.rew_rms = [RunningMeanStd(shape=()) for _ in range(len(self.models))]
+        self.cliprew = 100.
+        self.epsilon = 1e-8
+
+    def step_wait(self):
+        obs, rews, news, infos = self.venv.step_wait()
+        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([[]])
+        assert self.ctrl_coeff == 0.0 or (self.ctrl_coeff != 0.0 and acs.size > 0)
+
+        r_hats = np.zeros_like(rews)
+        with self.graph.as_default():
+            with self.sess.as_default():
+                for model,rms in zip(self.models,self.rew_rms):
+                    # Preference based reward
+                    r_hat = model.get_reward(obs,acs)
+
+                    # Normalize
+                    rms.update(r_hat)
+                    r_hat = np.clip((r_hat - rms.mean) / np.sqrt(rms.var + self.epsilon), -self.cliprew, self.cliprew)
+
+                    # Sum-up each models' reward
+                    r_hats += r_hat
+
+        rews = r_hat / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
+        rews += self.alive_bonus
+
+        return obs, rews, news, infos
+
+class VecTFPreferenceRewardNormalizedV3(VecTFPreferenceReward):
+    def __init__(self, venv, model_dir, ctrl_coeff=0., alive_bonus=0.):
+        super().__init__(venv, model_dir, ctrl_coeff, alive_bonus)
+
+    def step_wait(self):
+        obs, rews, news, infos = self.venv.step_wait()
+        acs = self.venv.last_actions if hasattr(self.venv,'last_actions') else np.array([[]])
+        assert self.ctrl_coeff == 0.0 or (self.ctrl_coeff != 0.0 and acs.size > 0)
+
+        r_hat = np.zeros_like(rews)
+        with self.graph.as_default():
+            with self.sess.as_default():
+                for model in self.models:
+                    # Preference based reward
+                    r_hat += np.tanh(model.get_reward(obs,acs))
 
         rews = r_hat / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
         rews += self.alive_bonus
