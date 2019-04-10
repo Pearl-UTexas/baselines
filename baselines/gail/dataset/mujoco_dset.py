@@ -23,8 +23,8 @@ class Dset(object):
         if self.randomize:
             idx = np.arange(self.num_pairs)
             np.random.shuffle(idx)
-            self.inputs = self.inputs[idx, :]
-            self.labels = self.labels[idx, :]
+            self.inputs = self.inputs[idx]
+            self.labels = self.labels[idx]
 
     def get_next_batch(self, batch_size):
         # if batch_size is negative -> return all
@@ -33,8 +33,8 @@ class Dset(object):
         if self.pointer + batch_size >= self.num_pairs:
             self.init_pointer()
         end = self.pointer + batch_size
-        inputs = self.inputs[self.pointer:end, :]
-        labels = self.labels[self.pointer:end, :]
+        inputs = self.inputs[self.pointer:end]
+        labels = self.labels[self.pointer:end]
         self.pointer = end
         return inputs, labels
 

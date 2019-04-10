@@ -1,6 +1,6 @@
 # Generative Adversarial Imitation Learning (GAIL)
 
-# Info
+## Mujoco
 
 - Train
 
@@ -21,6 +21,22 @@ python -m baselines.gail.run_mujoco --task evaluate --load_model_path ./path/to/
     ```
     python gail_dst_gen.py --env_id 'Hopper-v2' --learners_path ./learner/demo_models/hopper/checkpoints/ --train_chkpt '120' --num_trajs 1 --stochastic
     ```
+
+## Atari
+
+- Generate Dataset
+
+    ```
+    cd baselines/gail/dataset
+    python atari_gen.py --env_id PongNoFrameskip-v4 --out ../../../data/pong --learners_path ../../../../demo_models/pong/checkpoints --chkpts 3600 --num_traj 3 --stochastic
+    ```
+
+- Train
+
+```
+mpirun -np 4 python -m baselines.gail.run_atari --env_id PongNoFrameskip-v4 --expert_path ./data/breakout --log_dir ./log
+```
+
 
 # Original README
 
