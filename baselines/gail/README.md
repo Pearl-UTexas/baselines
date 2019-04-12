@@ -37,6 +37,12 @@ python -m baselines.gail.run_mujoco --task evaluate --load_model_path ./path/to/
 mpirun -np 4 python -m baselines.gail.run_atari --env_id PongNoFrameskip-v4 --expert_path ./data/breakout --log_dir ./log
 ```
 
+- Eval
+
+```
+python -m baselines.gail.run_atari --task evaluate --env_id PongNoFrameskip-v4 --load_model_path ./log_atari/with_best_demo/pong/test2/chckpts/model-500 --stochastic_policy
+```
+
 
 # Original README
 

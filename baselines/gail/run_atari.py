@@ -113,7 +113,7 @@ def main(args):
                policy_fn,
                args.load_model_path,
                timesteps_per_batch=1024,
-               number_trajs=10,
+               number_trajs=25,
                stochastic_policy=args.stochastic_policy,
                save=args.save_sample
                )
@@ -178,15 +178,13 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
     acs_list = []
     len_list = []
     ret_list = []
-    max_x_pos_list = []
     for _ in tqdm(range(number_trajs)):
-        traj, max_x_pos = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
+        traj = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
         obs, acs, ep_len, ep_ret = traj['ob'], traj['ac'], traj['ep_len'], traj['ep_ret']
         obs_list.append(obs)
         acs_list.append(acs)
         len_list.append(ep_len)
         ret_list.append(ep_ret)
-        max_x_pos_list.append(max_x_pos)
     if stochastic_policy:
         print('stochastic policy:')
     else:
@@ -197,10 +195,8 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
                  lens=np.array(len_list), rets=np.array(ret_list))
     avg_len = sum(len_list)/len(len_list)
     avg_ret = sum(ret_list)/len(ret_list)
-    avg_max_x_pos = np.mean(max_x_pos_list)
     print("Average length:", avg_len)
     print("Average return:", avg_ret)
-    print("Average max_x_pos:", avg_max_x_pos)
     return avg_len, avg_ret
 
 
@@ -220,7 +216,6 @@ def traj_1_generator(pi, env, horizon, stochastic):
     rews = []
     news = []
     acs = []
-    x_pos = []
 
     while True:
         ac, vpred = pi.act(stochastic, ob)
@@ -229,7 +224,6 @@ def traj_1_generator(pi, env, horizon, stochastic):
         acs.append(ac)
 
         ob, rew, new, _ = env.step(ac)
-        x_pos.append(env.unwrapped.sim.data.qpos[0])
         rews.append(rew)
 
         cur_ep_ret += rew
@@ -244,7 +238,7 @@ def traj_1_generator(pi, env, horizon, stochastic):
     acs = np.array(acs)
     traj = {"ob": obs, "rew": rews, "new": news, "ac": acs,
             "ep_ret": cur_ep_ret, "ep_len": cur_ep_len}
-    return traj, x_pos[-1]
+    return traj
 
 
 if __name__ == '__main__':

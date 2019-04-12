@@ -48,6 +48,7 @@ class Atari_Dset(object):
     def log_info(self):
         logger.log("Total trajectorues: %d" % self.num_traj)
         logger.log("Total transitions: %d" % self.num_transition)
+        logger.log("Best returns: %f" % np.max(self.rets))
         logger.log("Average returns: %f" % self.avg_ret)
         logger.log("Std for returns: %f" % self.std_ret)
 
