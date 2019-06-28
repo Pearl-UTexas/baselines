@@ -30,6 +30,14 @@ try:
 except ImportError:
     roboschool = None
 
+try:
+    import robosuite as suite
+    sys.path.append('../../')
+    import envs
+except ImportError as e:
+    print(e)
+
+
 _game_envs = defaultdict(set)
 for env in gym.envs.registry.all():
     # TODO: solve this with regexes
@@ -48,6 +56,10 @@ _game_envs['retro'] = {
     'Vectorman-Genesis',
     'FinalFight-Snes',
     'SpaceInvaders-Snes',
+}
+
+_game_envs['robosuite'] = {
+    'SawyerReach'
 }
 
 
@@ -102,7 +114,20 @@ def build_env(args):
             frame_stack_size = 4
             env = make_vec_env(env_id, env_type, nenv, seed, gamestate=args.gamestate, reward_scale=args.reward_scale)
             env = VecFrameStack(env, frame_stack_size)
+    elif env_type == 'robosuite':
+        from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+        def _make_robosuite_env():
+            from gym.wrappers import FlattenDictWrapper
+            from baselines.bench import Monitor
 
+            env = suite.make(env_id)
+            env = FlattenDictWrapper(env, ['robot-state', 'object-state'])
+            env = Monitor(env,logger.get_dir(),allow_early_resets=True)
+            return env
+
+        #? env.seed(seed + subrank if seed is not None else None)
+        env = DummyVecEnv([_make_robosuite_env])
+        env = VecNormalize(env)
     else:
        config = tf.ConfigProto(allow_soft_placement=True,
                                intra_op_parallelism_threads=1,

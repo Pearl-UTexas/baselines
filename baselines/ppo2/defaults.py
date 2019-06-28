@@ -12,6 +12,9 @@ def mujoco():
         value_network='copy'
     )
 
+def robosuite():
+    return mujoco()
+
 def atari():
     return dict(
         nsteps=128, nminibatches=4,
