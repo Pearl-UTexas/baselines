@@ -127,7 +127,6 @@ def build_env(args):
 
         #? env.seed(seed + subrank if seed is not None else None)
         env = DummyVecEnv([_make_robosuite_env])
-        env = VecNormalize(env)
     else:
        config = tf.ConfigProto(allow_soft_placement=True,
                                intra_op_parallelism_threads=1,
@@ -159,7 +158,7 @@ def build_env(args):
         else:
             assert False, 'no such wrapper exist'
 
-    if env_type == 'mujoco':
+    if env_type in ['mujoco','robosuite']:
         env = VecNormalize(env)
 
     return env
