@@ -97,7 +97,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
                 models = []
                 for i in range(args.num_models):
                     with tf.variable_scope('model_%d'%i):
-                        if args.env_type == 'mujoco':
+                        if args.env_type in ['mujoco','robosuite']:
                             net = MujocoNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
                         elif args.env_type == 'atari':
                             net = AtariNet(ob_shape,embedding_dims=args.embedding_dims)
