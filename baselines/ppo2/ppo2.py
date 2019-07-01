@@ -108,7 +108,9 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
                     max_grad_norm=max_grad_norm)
 
     if load_path is not None:
+        print('Use Pretrained model %s'%load_path)
         model.load(load_path)
+
     # Instantiate the runner object
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
     if eval_env is not None:

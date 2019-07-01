@@ -86,6 +86,15 @@ def train(args, extra_args):
 
     print('Training {} on {}:{} with arguments \n{}'.format(args.alg, env_type, env_id, alg_kwargs))
 
+    if 'load_path' in alg_kwargs:
+        print('--------------------')
+        print('Learning will start from pretrained model %s'%alg_kwargs['load_path'])
+        print('Hence, load environment parameter (running means) and fix it!')
+        env.ret_rms = None
+        env.eval = True
+        env.load(alg_kwargs['load_path'])
+        print('--------------------')
+
     model = learn(
         env=env,
         seed=seed,
