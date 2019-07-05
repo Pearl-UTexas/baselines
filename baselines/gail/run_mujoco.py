@@ -202,6 +202,7 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
     print("Average length:", avg_len)
     print("Average return:", avg_ret)
     print("Average max_x_pos:", avg_max_x_pos)
+    print("Std max_x_pos:", np.std(max_x_pos_list))
     return avg_len, avg_ret
 
 
