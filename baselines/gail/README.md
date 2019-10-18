@@ -11,7 +11,7 @@ mpirun -np 4 python -m baselines.gail.run_mujoco --env_id Hopper-v2 --expert_pat
 - Eval
 
 ```
-python -m baselines.gail.run_mujoco --task evaluate --load_model_path ./path/to/model --stochastic_policy
+python -m baselines.gail.run_mujoco --task evaluate --load_model_path ./path/to/model --stochastic_policy --save_sample --num_trajs 20
 ```
 
 - Generate Dataset

@@ -33,6 +33,7 @@ def argsparser():
     # for evaluatation
     boolean_flag(parser, 'stochastic_policy', default=False, help='use stochastic/deterministic policy to evaluate')
     boolean_flag(parser, 'save_sample', default=False, help='save the trajectories or not')
+    parser.add_argument('--num_trajs', type=int, default=20)
     #  Mujoco Dataset Configuration
     parser.add_argument('--traj_limitation', type=int, default=-1)
     # Optimization Configuration
@@ -114,7 +115,7 @@ def main(args):
                policy_fn,
                args.load_model_path,
                timesteps_per_batch=1024,
-               number_trajs=10,
+               number_trajs=args.num_trajs,
                stochastic_policy=args.stochastic_policy,
                save=args.save_sample
                )
@@ -176,14 +177,16 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
     U.load_state(load_model_path)
 
     obs_list = []
+    vis_obs_list = []
     acs_list = []
     len_list = []
     ret_list = []
     max_x_pos_list = []
     for _ in tqdm(range(number_trajs)):
         traj, max_x_pos = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
-        obs, acs, ep_len, ep_ret = traj['ob'], traj['ac'], traj['ep_len'], traj['ep_ret']
+        obs, vis_obs, acs, ep_len, ep_ret = traj['ob'], traj['vis_obs'], traj['ac'], traj['ep_len'], traj['ep_ret']
         obs_list.append(obs)
+        vis_obs_list.append(vis_obs)
         acs_list.append(acs)
         len_list.append(ep_len)
         ret_list.append(ep_ret)
@@ -196,11 +199,18 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
         filename = load_model_path.split('/')[-1] + '.' + env.spec.id
         np.savez(filename, obs=np.array(obs_list), acs=np.array(acs_list),
                  lens=np.array(len_list), rets=np.array(ret_list))
+
+        import moviepy.editor as mpy
+        for i, vis_obs in enumerate(vis_obs_list):
+            clip = mpy.ImageSequenceClip(list(vis_obs),fps=60)
+            clip.write_videofile(f'{filename}_{i}.mp4', verbose=False,ffmpeg_params=['-y'],progress_bar=False)
+
     avg_len = sum(len_list)/len(len_list)
     avg_ret = sum(ret_list)/len(ret_list)
     avg_max_x_pos = np.mean(max_x_pos_list)
     print("Average length:", avg_len)
-    print("Average return:", avg_ret)
+    print("Average return:", np.mean(ret_list))
+    print("std return:", np.std(ret_list))
     print("Average max_x_pos:", avg_max_x_pos)
     print("Std max_x_pos:", np.std(max_x_pos_list))
     return avg_len, avg_ret
@@ -208,17 +218,26 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
 
 # Sample one trajectory (until trajectory end)
 def traj_1_generator(pi, env, horizon, stochastic):
+    from mujoco_py.generated import const
+    unwrapped = env
+    while hasattr(unwrapped,'env'):
+        unwrapped = unwrapped.env
+    viewer = unwrapped._get_viewer('rgb_array')
+    viewer.cam.fixedcamid = 0
+    viewer.cam.type = const.CAMERA_FIXED
 
     t = 0
     ac = env.action_space.sample()  # not used, just so we have the datatype
     new = True  # marks if we're on first timestep of an episode
 
     ob = env.reset()
+    vis_ob = env.render('rgb_array')
     cur_ep_ret = 0  # return in current episode
     cur_ep_len = 0  # len of current episode
 
     # Initialize history arrays
     obs = []
+    vis_obs = []
     rews = []
     news = []
     acs = []
@@ -227,10 +246,12 @@ def traj_1_generator(pi, env, horizon, stochastic):
     while True:
         ac, vpred = pi.act(stochastic, ob)
         obs.append(ob)
+        vis_obs.append(vis_ob)
         news.append(new)
         acs.append(ac)
 
         ob, rew, new, _ = env.step(ac)
+        vis_ob = env.render('rgb_array')
         x_pos.append(env.unwrapped.sim.data.qpos[0])
         rews.append(rew)
 
@@ -241,10 +262,11 @@ def traj_1_generator(pi, env, horizon, stochastic):
         t += 1
 
     obs = np.array(obs)
+    vis_obs = np.array(vis_obs)
     rews = np.array(rews)
     news = np.array(news)
     acs = np.array(acs)
-    traj = {"ob": obs, "rew": rews, "new": news, "ac": acs,
+    traj = {"ob": obs, "vis_obs": vis_obs, "rew": rews, "new": news, "ac": acs,
             "ep_ret": cur_ep_ret, "ep_len": cur_ep_len}
     return traj, x_pos[-1]
 
