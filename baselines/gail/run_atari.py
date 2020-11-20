@@ -18,7 +18,7 @@ from baselines.common.misc_util import boolean_flag
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 from baselines import bench
 from baselines import logger
-from baselines.gail.dataset.atari_dset import Atari_Dset
+from baselines.gail.dataset.atari_dset import Atari_Dset, Atari_Cset
 from baselines.gail.adversary_atari import TransitionClassifier
 
 
@@ -50,6 +50,7 @@ def argsparser():
     # Behavior Cloning
     boolean_flag(parser, 'pretrained', default=False, help='Use BC to pretrain')
     parser.add_argument('--BC_max_iter', help='Max iteration for training BC', type=int, default=1e4)
+    parser.add_argument('--cs', type=str, choices=['ia', 'is', 'id', 'ic', 'full'], default='full', help='type of critical states')
     return parser.parse_args()
 
 
@@ -89,7 +90,12 @@ def main(args):
         args.checkpoint_dir = osp.join(args.log_dir, 'chckpts')
         os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-        dataset = Atari_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
+        if args.cs:
+            dataset = Atari_Cset(expert_path=args.expert_path, cs_type=args.cs, traj_limitation=args.traj_limitation)
+        else:
+            dataset = Atari_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
+        
+            
         reward_giver = TransitionClassifier(env, entcoeff=args.adversary_entcoeff)
         train(env,
               args.seed,
